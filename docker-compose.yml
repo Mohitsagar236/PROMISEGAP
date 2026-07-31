@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: promisegap
+      POSTGRES_USER: promisegap
+      POSTGRES_PASSWORD: promisegap
+    ports:
+      - "5432:5432"
+    volumes:
+      - promisegap_postgres:/var/lib/postgresql/data
+
+volumes:
+  promisegap_postgres:

@@ -1,0 +1,266 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id           String        @id @default(cuid())
+  name         String
+  users        User[]
+  accounts     Account[]
+  documents    Document[]
+  promises     ExtractedPromise[]
+  capabilities Capability[]
+  actionItems  PromiseActionItem[]
+  reports      Report[]
+  riskSetting  RiskSetting?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model User {
+  id                 String                 @id @default(cuid())
+  name               String
+  email              String                 @unique
+  passwordHash       String
+  role               String
+  organizationId     String
+  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedDocuments  Document[]             @relation("UploadedDocuments")
+  assignedPromises   ExtractedPromise[]      @relation("AssignedPromises")
+  reviewedPromises   ExtractedPromise[]      @relation("ReviewedPromises")
+  comments           PromiseComment[]
+  ownedActionItems   PromiseActionItem[]     @relation("OwnedActionItems")
+  createdActionItems PromiseActionItem[]     @relation("CreatedActionItems")
+  timelineEvents     PromiseTimelineEvent[]
+  reports            Report[]
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+}
+
+model Account {
+  id                   String               @id @default(cuid())
+  organizationId       String
+  organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                 String
+  segment              String
+  region               String
+  arr                  Int
+  dealStage            String
+  accountOwner         String
+  customerSuccessOwner String
+  onboardingDeadline   DateTime?
+  renewalDeadline      DateTime?
+  riskScore            Int                  @default(0)
+  documents            Document[]
+  promises             ExtractedPromise[]
+  actionItems          PromiseActionItem[]
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+}
+
+model Document {
+  id               String             @id @default(cuid())
+  organizationId   String
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  accountId        String
+  account          Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  title            String
+  documentType     String
+  rawText          String
+  sourceOwner      String
+  dealStage        String
+  extractionStatus String             @default("Pending")
+  notes            String?
+  uploadedById     String
+  uploadedBy       User               @relation("UploadedDocuments", fields: [uploadedById], references: [id])
+  promises         ExtractedPromise[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model ExtractedPromise {
+  id                String                   @id @default(cuid())
+  organizationId    String
+  organization      Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  accountId         String
+  account           Account                  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  documentId        String?
+  document          Document?                @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  promiseText       String
+  normalizedClaim   String
+  sourceLocation    String
+  category          String
+  confidenceScore   Float
+  dueDate           DateTime?
+  extractedOwner    String?
+  assignedOwnerId   String?
+  assignedOwner     User?                    @relation("AssignedPromises", fields: [assignedOwnerId], references: [id])
+  extractionMethod  String
+  needsHumanReview  Boolean                  @default(true)
+  humanReviewedAt   DateTime?
+  humanReviewedById String?
+  humanReviewedBy   User?                    @relation("ReviewedPromises", fields: [humanReviewedById], references: [id])
+  status            String                   @default("Extracted")
+  riskLevel         String                   @default("Low")
+  riskScore         Int                      @default(0)
+  riskExplanation   String                   @default("")
+  matches           PromiseCapabilityMatch[]
+  riskScores        PromiseRiskScore[]
+  comments          PromiseComment[]
+  actionItems       PromiseActionItem[]
+  timelineEvents    PromiseTimelineEvent[]
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+}
+
+model Capability {
+  id                   String                   @id @default(cuid())
+  organizationId       String
+  organization         Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                 String
+  description          String
+  category             String
+  supportStatus        String
+  evidence             String
+  documentationLink    String?
+  productOwner         String
+  engineeringOwner     String
+  releaseVersion       String?
+  limitations          String?
+  supportedPlans       String
+  requiredConfiguration String?
+  thirdPartyDependency String?
+  lastVerifiedDate     DateTime
+  internalNotes        String?
+  matches              PromiseCapabilityMatch[]
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+}
+
+model PromiseCapabilityMatch {
+  id                  String           @id @default(cuid())
+  promiseId           String
+  promise             ExtractedPromise @relation(fields: [promiseId], references: [id], onDelete: Cascade)
+  capabilityId        String
+  capability          Capability       @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+  matchConfidence     Float
+  supportStatus       String
+  gapType             String
+  explanation         String
+  evidence            String
+  requiresHumanReview Boolean          @default(true)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+}
+
+model PromiseRiskScore {
+  id           String           @id @default(cuid())
+  promiseId    String
+  promise      ExtractedPromise @relation(fields: [promiseId], references: [id], onDelete: Cascade)
+  numericScore Int
+  riskLevel    String
+  factors      String
+  explanation  String
+  createdAt    DateTime         @default(now())
+}
+
+model PromiseComment {
+  id        String           @id @default(cuid())
+  promiseId String
+  promise   ExtractedPromise @relation(fields: [promiseId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment   String
+  createdAt DateTime         @default(now())
+}
+
+model PromiseActionItem {
+  id             String           @id @default(cuid())
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  promiseId      String?
+  promise        ExtractedPromise? @relation(fields: [promiseId], references: [id], onDelete: SetNull)
+  accountId      String
+  account        Account          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  title          String
+  description    String
+  ownerId        String?
+  owner          User?            @relation("OwnedActionItems", fields: [ownerId], references: [id])
+  dueDate        DateTime?
+  priority       String
+  status         String           @default("Open")
+  createdById    String
+  createdBy      User             @relation("CreatedActionItems", fields: [createdById], references: [id])
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model PromiseTimelineEvent {
+  id          String           @id @default(cuid())
+  promiseId   String
+  promise     ExtractedPromise @relation(fields: [promiseId], references: [id], onDelete: Cascade)
+  eventType   String
+  description String
+  actorId     String?
+  actor       User?            @relation(fields: [actorId], references: [id])
+  metadata    String?
+  createdAt   DateTime         @default(now())
+}
+
+model Report {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reportType      String
+  title           String
+  markdownContent String
+  createdById     String
+  createdBy       User         @relation(fields: [createdById], references: [id])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model RiskSetting {
+  id                         String       @id @default(cuid())
+  organizationId             String       @unique
+  organization               Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  unsupportedCapabilityWeight Int          @default(30)
+  partialSupportWeight        Int          @default(18)
+  enterpriseCustomerWeight    Int          @default(12)
+  contractSourceWeight        Int          @default(14)
+  dueDateProximityWeight      Int          @default(12)
+  missingOwnerWeight          Int          @default(10)
+  dealValueWeight             Int          @default(10)
+  complianceSecurityWeight    Int          @default(12)
+  lowConfidenceWeight         Int          @default(8)
+  repeatedPromiseWeight       Int          @default(8)
+  updatedAt                   DateTime     @updatedAt
+}
+
+model ImportBatch {
+  id             String        @id @default(cuid())
+  type           String
+  filename       String?
+  status         String
+  totalRows      Int           @default(0)
+  successfulRows Int           @default(0)
+  failedRows     Int           @default(0)
+  errors         ImportError[]
+  createdAt      DateTime      @default(now())
+}
+
+model ImportError {
+  id            String      @id @default(cuid())
+  importBatchId String
+  importBatch   ImportBatch @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  rowNumber     Int
+  field         String
+  message       String
+  rawData       String
+  createdAt     DateTime    @default(now())
+}
